@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+trading_bot.db
+models/
+.env
+scripts/__pycache__/
