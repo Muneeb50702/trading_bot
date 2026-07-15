@@ -49,7 +49,10 @@ class Settings(BaseSettings):
     short_threshold: float = 0.42
     min_confidence: float = 0.55  # below this -> No Trade regardless of side
     # ML blend weight: final_prob = w*ml + (1-w)*confluence, when a model exists.
-    ml_blend_weight: float = 0.5
+    # 0.35 lets confluence drive signal generation while the (deliberately
+    # conservative, calibrated) model refines it — a 50/50 blend drags most
+    # probabilities to ~0.5 and starves the strategy of trades.
+    ml_blend_weight: float = 0.35
 
     # --- Risk management (defaults; per-user overridable) ---
     account_balance: float = 10_000.0

@@ -111,32 +111,39 @@ def adx(
 def supertrend(
     high: pd.Series, low: pd.Series, close: pd.Series, length: int = 10, mult: float = 3.0
 ) -> tuple[pd.Series, pd.Series]:
-    """Returns (supertrend_line, direction) where direction is +1 up / -1 down."""
-    atr_ = atr(high, low, close, length)
-    hl2 = (high + low) / 2
-    upper = hl2 + mult * atr_
-    lower = hl2 - mult * atr_
+    """Returns (supertrend_line, direction) where direction is +1 up / -1 down.
 
-    st = pd.Series(index=close.index, dtype=float)
-    dir_ = pd.Series(index=close.index, dtype=float)
-    prev_st = np.nan
+    The trailing-band update is inherently recursive (each band depends on the
+    prior one), so it can't be fully vectorized — but we loop over raw NumPy
+    arrays instead of pandas .iloc, which is ~50-100x faster and matters a lot
+    for backtests/scans that call this thousands of times.
+    """
+    atr_ = atr(high, low, close, length)
+    hl2 = ((high + low) / 2).to_numpy()
+    upper = (hl2 + mult * atr_.to_numpy())
+    lower = (hl2 - mult * atr_.to_numpy())
+    close_a = close.to_numpy()
+    atr_a = atr_.to_numpy()
+    n = len(close_a)
+
+    st = np.empty(n)
+    dir_ = np.empty(n)
     prev_dir = 1
     fu = fl = np.nan
-    for i in range(len(close)):
-        cu, cl = upper.iloc[i], lower.iloc[i]
-        if i == 0 or np.isnan(atr_.iloc[i]):
-            fu, fl, prev_dir, prev_st = cu, cl, 1, cl
-            st.iloc[i], dir_.iloc[i] = prev_st, prev_dir
+    for i in range(n):
+        cu, cl = upper[i], lower[i]
+        if i == 0 or np.isnan(atr_a[i]):
+            fu, fl, prev_dir = cu, cl, 1
+            st[i], dir_[i] = cl, prev_dir
             continue
-        fu = cu if (cu < fu or close.iloc[i - 1] > fu) else fu
-        fl = cl if (cl > fl or close.iloc[i - 1] < fl) else fl
-        if close.iloc[i] > fu:
+        fu = cu if (cu < fu or close_a[i - 1] > fu) else fu
+        fl = cl if (cl > fl or close_a[i - 1] < fl) else fl
+        if close_a[i] > fu:
             prev_dir = 1
-        elif close.iloc[i] < fl:
+        elif close_a[i] < fl:
             prev_dir = -1
-        prev_st = fl if prev_dir == 1 else fu
-        st.iloc[i], dir_.iloc[i] = prev_st, prev_dir
-    return st, dir_
+        st[i], dir_[i] = (fl if prev_dir == 1 else fu), prev_dir
+    return pd.Series(st, index=close.index), pd.Series(dir_, index=close.index)
 
 
 def ichimoku(

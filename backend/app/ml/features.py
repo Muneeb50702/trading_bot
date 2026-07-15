@@ -24,6 +24,18 @@ FEATURE_COLUMNS = [
     "supertrend_dir",
     "vol_rel",
     "close_pos",  # position of close within candle range
+    # --- added for stronger predictive power ---
+    "ret_vol",        # recent realised volatility of returns
+    "ret_accel",      # momentum acceleration (Δ of short return)
+    "ema_slope",      # slope of the slow EMA (trend gradient)
+    "range_pos_50",   # position within the last 50-bar high/low range
+    "streak",         # signed consecutive up/down candle count
+    "body_ratio",     # candle body vs range (conviction)
+    "upper_wick",     # rejection from above
+    "lower_wick",     # rejection from below
+    "vol_z",          # volume z-score vs recent norm
+    "dist_high_20",   # distance below the 20-bar high
+    "dist_low_20",    # distance above the 20-bar low
 ]
 
 
@@ -73,6 +85,33 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     f["vol_rel"] = v / v.rolling(20).mean()
 
     f["close_pos"] = (c - l) / (h - l).replace(0, np.nan)
+
+    # --- added features ---
+    ret1 = c.pct_change(1)
+    f["ret_vol"] = ret1.rolling(14).std()
+    f["ret_accel"] = ret1 - ret1.shift(3)
+
+    ema_slow = core.ema(c, 50)
+    f["ema_slope"] = ema_slow.diff(5) / c
+
+    lo50, hi50 = l.rolling(50).min(), h.rolling(50).max()
+    f["range_pos_50"] = (c - lo50) / (hi50 - lo50).replace(0, np.nan)
+
+    up = (c > o).astype(int).replace(0, -1)
+    # signed run-length of same-direction candles, normalised
+    grp = (up != up.shift()).cumsum()
+    f["streak"] = (up.groupby(grp).cumcount() + 1) * up / 10.0
+
+    rng = (h - l).replace(0, np.nan)
+    f["body_ratio"] = (c - o).abs() / rng
+    f["upper_wick"] = (h - c.combine(o, max)) / rng
+    f["lower_wick"] = (c.combine(o, min) - l) / rng
+
+    f["vol_z"] = (v - v.rolling(20).mean()) / (v.rolling(20).std() + 1e-9)
+
+    hi20, lo20 = h.rolling(20).max(), l.rolling(20).min()
+    f["dist_high_20"] = (hi20 - c) / c
+    f["dist_low_20"] = (c - lo20) / c
 
     return f[FEATURE_COLUMNS].replace([np.inf, -np.inf], np.nan)
 

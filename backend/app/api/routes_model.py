@@ -22,7 +22,7 @@ async def train(
     symbol: str = Query("BTC/USDT"),
     timeframe: str = Query("15m"),
     candles: int = Query(1500, le=1500),
-    horizon: int = Query(3, ge=1, le=12),
+    horizon: int = Query(8, ge=1, le=12),
 ):
     """Pull recent history and (re)train the probability model on it."""
     df = await market_data.fetch_ohlcv(symbol, timeframe, limit=candles)

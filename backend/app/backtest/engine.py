@@ -51,14 +51,24 @@ class BacktestReport:
 def run_backtest(
     df: pd.DataFrame, *, symbol: str, timeframe: str, exchange: str = "backtest",
     window: int = 200, warmup: int = 120, step: int = 1, hold_bars: int = 24,
-    min_confidence: float = 0.55,
+    min_confidence: float = 0.55, use_ml: bool = False,
 ) -> BacktestReport:
+    # optional: fold the trained ML model into each bar's probability, so the
+    # backtest reflects the *actual* product rather than confluence alone.
+    blend = None
+    if use_ml:
+        from app.ml.predictor import blend_probability, get_model
+        if get_model().is_trained:
+            blend = blend_probability
+
     trades: list[Trade] = []
     n = len(df)
     i = warmup
     while i < n - 1:
         win = df.iloc[max(0, i - window): i + 1]
         prob, votes = confluence.analyze(win)
+        if blend is not None:
+            prob, _ = blend(win, prob)
         sig = signal_builder.build_signal(
             win, prob, votes, symbol=symbol, timeframe=timeframe, exchange=exchange
         )

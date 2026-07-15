@@ -38,7 +38,7 @@ def main() -> int:
     from app.ml.predictor import blend_probability, get_model
     from app.backtest.engine import run_backtest
 
-    df = synth_ohlcv()
+    df = synth_ohlcv(1500)
     print(f"synthetic candles: {len(df)}")
 
     prob, votes = confluence.analyze(df)
